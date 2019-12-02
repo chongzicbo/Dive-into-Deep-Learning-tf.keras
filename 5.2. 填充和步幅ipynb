@@ -1,0 +1,272 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "name": "5.2. 填充和步幅ipynb",
+      "provenance": [],
+      "collapsed_sections": [],
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/chongzicbo/Dive-into-Deep-Learning-tf.keras/blob/master/5.2.%20%E5%A1%AB%E5%85%85%E5%92%8C%E6%AD%A5%E5%B9%85ipynb\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "aN9xG39GBqQi",
+        "colab_type": "text"
+      },
+      "source": [
+        "##5.2. 填充和步幅\n",
+        "&emsp;&emsp;在上一节的例子里，我们使用高和宽为3的输入与高和宽为2的卷积核得到高和宽为2的输出。一般来说，假设输入形状是 $n_h×n_w$ ，卷积核窗口形状是 $k_h×k_w$ ，那么输出形状将会是\n",
+        "$$\n",
+        "(n_h-k_h+1) \\times (n_w-k_w+1).\n",
+        "$$\n",
+        "&emsp;&emsp;所以卷积层的输出形状由输入形状和卷积核窗口形状决定。本节我们将介绍卷积层的两个超参数，即填充和步幅。它们可以对给定形状的输入和卷积核改变输出形状。\n",
+        "\n",
+        "###5.2.1. 填充\n",
+        "&emsp;&emsp;填充（padding）是指在输入高和宽的两侧填充元素（通常是0元素）。图5.2里我们在原输入高和宽的两侧分别添加了值为0的元素，使得输入高和宽从3变成了5，并导致输出高和宽由2增加到4。图5.2中的阴影部分为第一个输出元素及其计算所使用的输入和核数组元素： 0×0+0×1+0×2+0×3=0 。\n",
+        "<div align=center><img src=\"https://zh.gluon.ai/_images/conv_pad.svg\" width=\"300\"/></div>\n",
+        "<center>图 5.2 在输入的高和宽两侧分别填充了0元素的二维互相关计算</center>\n",
+        "\n",
+        "&emsp;&emsp;一般来说，如果在高的两侧一共填充 $p_h$ 行，在宽的两侧一共填充 $p_w$ 列，那么输出形状将会是\n",
+        "$$\n",
+        "(n_h-k_h+p_h+1)\\times(n_w-k_w+p_w+1),\n",
+        "$$\n",
+        "\n",
+        "&emsp;&emsp;也就是说，输出的高和宽会分别增加 $p_h$ 和 $p_w$ 。\n",
+        "\n",
+        "&emsp;&emsp;在很多情况下，我们会设置 $p_h=k_h−1$ 和 $p_w=k_w−1$ 来使输入和输出具有相同的高和宽。这样会方便在构造网络时推测每个层的输出形状。假设这里 $k_h$ 是奇数，我们会在高的两侧分别填充 $p_h/2$ 行。如果 $k_h$ 是偶数，一种可能是在输入的顶端一侧填充 $⌈p_h/2⌉$ 行，而在底端一侧填充 $⌊p_h/2⌋ $行。在宽的两侧填充同理。\n",
+        "\n",
+        "&emsp;&emsp;卷积神经网络经常使用奇数高宽的卷积核，如1、3、5和7，所以两端上的填充个数相等。对任意的二维数组$X$，设它的第i行第j列的元素为$X[i,j]$。当两端上的填充个数相等，并使输入和输出具有相同的高和宽时，我们就知道输出$Y[i,j]$是由输入以X[i,j]为中心的窗口同卷积核进行互相关计算得到的。\n",
+        "\n",
+        "&emsp;&emsp;下面的例子里我们创建一个高和宽为3的二维卷积层，然后设输入高和宽两侧的填充数分别为1。给定一个高和宽为8的输入，我们发现输出的高和宽也是8。"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "hlTrBHwk-Qj5",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "import tensorflow as tf\n",
+        "from tensorflow import keras"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "AxQYlGL_-dDV",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "tf.enable_eager_execution()"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "bIA5qXZ--hZ0",
+        "colab_type": "code",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 34
+        },
+        "outputId": "00fe97c5-95b2-4e9a-9247-70eb9aeb9052"
+      },
+      "source": [
+        "# 定义一个函数来计算卷积层。它初始化卷积层权重，并对输入和输出做相应的升维和降维\n",
+        "def comp_conv2d(conv2d,X):\n",
+        "  X=tf.reshape(X,shape=([1,X.shape[0],X.shape[1],1]))\n",
+        "  Y=conv2d(X)\n",
+        "  return tf.reshape(Y,Y.shape[1:3])\n",
+        "conv2d=keras.layers.Conv2D(1,kernel_size=3,padding='same')\n",
+        "X=tf.random.uniform(shape=(8,8))\n",
+        "comp_conv2d(conv2d,X).shape"
+      ],
+      "execution_count": 4,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "TensorShape([Dimension(8), Dimension(8)])"
+            ]
+          },
+          "metadata": {
+            "tags": []
+          },
+          "execution_count": 4
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "4HitAleHDabV",
+        "colab_type": "text"
+      },
+      "source": [
+        "&emsp;&emsp;当卷积核的高和宽不同时，我们也可以通过设置padding='same'使输出和输入具有相同的高和宽。"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "xMHKWsL__txZ",
+        "colab_type": "code",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 34
+        },
+        "outputId": "0a3f69d1-7037-4476-a755-ae4874e8819d"
+      },
+      "source": [
+        "conv2d=keras.layers.Conv2D(filters=1,kernel_size=(5,3),padding='same')\n",
+        "comp_conv2d(conv2d,X).shape"
+      ],
+      "execution_count": 5,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "TensorShape([Dimension(8), Dimension(8)])"
+            ]
+          },
+          "metadata": {
+            "tags": []
+          },
+          "execution_count": 5
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "fLShM2thE6ua",
+        "colab_type": "text"
+      },
+      "source": [
+        "###5.2.2. 步幅\n",
+        "&emsp;&emsp;在上一节里我们介绍了二维互相关运算。卷积窗口从输入数组的最左上方开始，按从左往右、从上往下的顺序，依次在输入数组上滑动。我们将每次滑动的行数和列数称为步幅（stride）。\n",
+        "\n",
+        "&emsp;&emsp;目前我们看到的例子里，在高和宽两个方向上步幅均为1。我们也可以使用更大步幅。图5.3展示了在高上步幅为3、在宽上步幅为2的二维互相关运算。可以看到，输出第一列第二个元素时，卷积窗口向下滑动了3行，而在输出第一行第二个元素时卷积窗口向右滑动了2列。当卷积窗口在输入上再向右滑动2列时，由于输入元素无法填满窗口，无结果输出。图5.3中的阴影部分为输出元素及其计算所使用的输入和核数组元素： 0×0+0×1+1×2+2×3=8 、 0×0+6×1+0×2+0×3=6 。\n",
+        "<div align=center><img src=\"https://zh.gluon.ai/_images/conv_stride.svg\" width=\"300\"/></div>\n",
+        "<center>图 5.3 高和宽上步幅分别为3和2的二维互相关运算</center>\n",
+        "\n",
+        "&emsp;&emsp;一般来说，当高上步幅为 $s_h$ ，宽上步幅为 $s_w$ 时，输出形状为\n",
+        "$$\n",
+        "\\lfloor(n_h-k_h+p_h+s_h)/s_h\\rfloor \\times \\lfloor(n_w-k_w+p_w+s_w)/s_w\\rfloor.\n",
+        "$$\n",
+        "&emsp;&emsp;如果设置$p_h=k_h-1$和$p_w=k_w-1$，那么输出形状将简化为$\\lfloor(n_h+s_h-1)/s_h\\rfloor \\times \\lfloor(n_w+s_w-1)/s_w\\rfloor$。更进一步，如果输入的高和宽能分别被高和宽上的步幅整除，那么输出形状将是$(n_h/s_h) \\times (n_w/s_w)$。\\\n",
+        "&emsp;&emsp;下面我们令高和宽上的步幅均为2，从而使输入的高和宽减半。"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "HLdAj3srAaVS",
+        "colab_type": "code",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 34
+        },
+        "outputId": "a18eb389-8374-43a1-e2e7-a63c2e47654f"
+      },
+      "source": [
+        "conv2d = keras.layers.Conv2D(1, kernel_size=3, padding='same', strides=2)\n",
+        "comp_conv2d(conv2d, X).shape"
+      ],
+      "execution_count": 6,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "TensorShape([Dimension(4), Dimension(4)])"
+            ]
+          },
+          "metadata": {
+            "tags": []
+          },
+          "execution_count": 6
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "7LWEROXeDrDj",
+        "colab_type": "text"
+      },
+      "source": [
+        "&emsp;&emsp;为了表述简洁，当输入的高和宽两侧的填充数分别为 $p_h$ 和 $p_w$ 时，我们称填充为 $(p_h,p_w)$ 。特别地，当 $p_h=p_w=p$ 时，填充为 $p$ 。当在高和宽上的步幅分别为 $s_h$ 和 $s_w$ 时，我们称步幅为 $(s_h,s_w)$ 。特别地，当 $s_h=s_w=s $时，步幅为 $s$ 。在默认情况下，填充为0，步幅为1。"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "6mB8pHOdApPk",
+        "colab_type": "code",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 34
+        },
+        "outputId": "32e72e39-6281-420e-8d6f-e7def1327ede"
+      },
+      "source": [
+        "conv2d = keras.layers.Conv2D(1, kernel_size=(3, 5), padding='same', strides=(4, 4))\n",
+        "comp_conv2d(conv2d, X).shape"
+      ],
+      "execution_count": 14,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "TensorShape([Dimension(2), Dimension(2)])"
+            ]
+          },
+          "metadata": {
+            "tags": []
+          },
+          "execution_count": 14
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "ybyuriZNA1tg",
+        "colab_type": "text"
+      },
+      "source": [
+        "###5.2.3. 小结\n",
+        "* 填充可以增加输出的高和宽。这常用来使输出与输入具有相同的高和宽。\n",
+        "* 步幅可以减小输出的高和宽，例如输出的高和宽仅为输入的高和宽的 1/n （ n 为大于1的整数）。"
+      ]
+    }
+  ]
+}
